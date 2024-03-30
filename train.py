@@ -5,11 +5,11 @@ import argparse
 import cv2
 import numpy as np
 import torch as th
-
+import datetime
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--envs", type=str, default="PongNoFrameskip-v4,BreakoutNoFrameskip-v4,SpaceInvadersNoFrameskip-v4,QbertNoFrameskip-v4")
-argparser.add_argument("--total_timesteps", type=int, default=1000)
+argparser.add_argument("--total_timesteps", type=int, default=int(1e6))
 argparser.add_argument("--verbose", type=int, default=0)
 argparser.add_argument("--seed", type=int, default=0)
 args = argparser.parse_args()
@@ -22,19 +22,25 @@ th.manual_seed(args.seed)
 env_strs = args.envs.split(",")
 env = MegaAtariEnv(env_strs, render_mode="rgb_array")
 
+# logging
+date_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+logdir = f"logs/{date_time_str}"
+
 # training
-model = MegaDQN("MegaCnnPolicy", env, verbose=args.verbose, learning_starts=500)
-before = model.policy.q_net.heads[0][0].weight.data.clone()
+model = MegaDQN("MegaCnnPolicy", env, verbose=args.verbose, learning_starts=500, tensorboard_log=logdir)
 model.learn(total_timesteps=args.total_timesteps, progress_bar=True)
-after = model.policy.q_net.heads[0][0].weight.data.clone()
+
+# save
+model.save(f"{logdir}/model")
 
 # create renderer
 img = env.render()
 width, height = img.shape[1], img.shape[0]
-out = cv2.VideoWriter('TrainingResult.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30, (width, height))
+out = cv2.VideoWriter(f'{logdir}/TrainingResult.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30, (width, height))
 
+# run episodes
 obs = env.reset()
-for timestep in range(1000):
+for timestep in range(10_000):
     actions, _states = model.predict(obs, deterministic=False)
     obs, rewards, done, info = env.step(actions)
     img = env.render()

@@ -113,6 +113,7 @@ class MegaDQN(OffPolicyAlgorithm):
         policy_kwargs["all_action_spaces"] = env.all_action_spaces
         policy_kwargs["max_action_space"] = env.action_space
         self.all_action_spaces = env.all_action_spaces
+        self.env_strs = [s.replace("NoFrameskip-v4", "") for s in env.env_strs]
 
         super().__init__(
             policy,
@@ -159,6 +160,11 @@ class MegaDQN(OffPolicyAlgorithm):
 
         if _init_setup_model:
             self._setup_model()
+
+        # record keeping for individual envs
+        self.total_episodes = [0] * len(env.env_strs)
+        self.total_steps = [0] * len(env.env_strs)
+        self.current_returns = [0] * len(env.env_strs)
 
 
     def _setup_model(self) -> None:
@@ -254,7 +260,8 @@ class MegaDQN(OffPolicyAlgorithm):
         self.logger.record("train/loss", np.mean(losses))
         env_losses = th.stack(env_losses, dim=1).mean(dim=1).cpu().numpy()
         for i, env_loss in enumerate(env_losses):
-            self.logger.record(f"train/env_{i}_loss", env_loss)
+            env_name = self.env_strs[i]
+            self.logger.record(f"train/loss_{env_name}", env_loss)
 
 
 
@@ -372,6 +379,11 @@ class MegaDQN(OffPolicyAlgorithm):
             # Rescale and perform action
             new_obs, rewards, dones, infos = env.step(actions)
 
+            # add rewards to total retunrs
+            for i, reward in enumerate(rewards):
+                self.current_returns[i] += reward
+                self.total_steps[i] += 1
+
             self.num_timesteps += env.num_envs
             num_collected_steps += 1
 
@@ -397,6 +409,11 @@ class MegaDQN(OffPolicyAlgorithm):
 
             for idx, done in enumerate(dones):
                 if done:
+                    # update individual env stats, and log them
+                    self.total_episodes[idx] += 1
+                    self.logger.record(f"rollout/return_{self.env_strs[idx]}", self.current_returns[idx])
+                    self.current_returns[idx] = 0
+
                     # Update stats
                     num_collected_episodes += 1
                     self._episode_num += 1

@@ -2,3 +2,4 @@
 .vscode/
 venv/
 *.mp4
+logs/
