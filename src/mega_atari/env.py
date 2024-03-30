@@ -1,88 +1,72 @@
 import gymnasium
+from stable_baselines3.common.atari_wrappers import AtariWrapper
+from stable_baselines3.common.vec_env import VecFrameStack
+from stable_baselines3.common.vec_env import DummyVecEnv
+import copy
 
 # Create a class which initializes a given list of atari environments and allows us to reset by choosing a new environment and a new episode
-class MegaAtariEnv(gymnasium.Env):
-    def __init__(self, env_name_list, current_env_num=None, *args, **kwargs):
+class MegaAtariEnv(DummyVecEnv):
+    def __init__(self, env_name_list, *args, **kwargs):
         self.env_name_list = env_name_list
 
-        # crreate envs
-        self.envs = {}
-        for env in env_name_list:
-            self.envs[env] = gymnasium.make(env, *args, **kwargs)
+        # create envs
+        env_functions = []
+        for env_str in env_name_list:
+            # print("Creating env ", env_str)
+            fcn = lambda env_str=env_str: AtariWrapper(gymnasium.make(env_str, *args, **kwargs))
+            env_functions.append(copy.deepcopy(fcn))
 
-        # keep track of current
-        self.current_index = current_env_num if current_env_num is not None else len(env_name_list) - 1
-
-        # verify obs space the same
-        self.observation_space_0 = self.envs[self.env_name_list[0]].observation_space
-        for env in self.env_name_list:
-            assert self.envs[env].observation_space == self.observation_space_0
+        # wrap into sb3 stuff
+        env = DummyVecEnv(env_functions)
+        self.env = VecFrameStack(env, n_stack=4)
 
         # get largest action space
-        self.max_action_space = max([self.envs[env_index].action_space.n for env_index in self.env_name_list])
+        self.action_space = gymnasium.spaces.Discrete(max([self.envs[i].action_space.n for i in range(len(self.env_name_list))]))
+        self.all_action_spaces = gymnasium.spaces.MultiDiscrete([self.envs[i].action_space.n for i in range(len(self.env_name_list))])
+        self.env_strs = env_name_list
 
 
-    def reset(self, change_env=True, new_env_num=None):
-        if change_env:
-            if new_env_num is None:
-                self.current_index = (self.current_index + 1) % len(self.env_name_list)
+    def step(self, actions):
+        self.step_async(actions)
+        return self.step_wait()
+
+    def reset(self):
+        return self.env.reset()
+    
+    def step_async(self, actions):
+        return self.env.step_async(actions)
+    
+    def step_wait(self):
+        return self.env.step_wait()
+
+
+    def __getattr__(self, name):
+            # If the attribute is not found in OuterClass, try to find it in the inner object
+            if hasattr(self.env, name):
+                return getattr(self.env, name)
             else:
-                self.current_index = new_env_num
-        # self.current_env = self.env_name_list[self.current_env_num]
-        # old_env = self.env.reset()
-        # if change_env:
-        #     self.env = super().__init__(self.current_env)
-        #     self.observation_space_dict[self.current_env] = self.env.observation_space
-        #     self.action_space_dict[self.current_env] = self.env.action_space
-        obs, info = self.envs[self.env_name_list[self.current_index]].reset()
-        info["env_name"] = self.env_name_list[self.current_index]
-        return obs, info
-
-    def step(self, action):
-        next_state, reward, terminated, truncated, info = self.envs[self.env_name_list[self.current_index]].step(action)
-        info["env_name"] = self.env_name_list[self.current_index]
-        return next_state, reward, terminated, truncated, info
-
-    def render(self):
-        # self.env.render()
-        return self.envs[self.env_name_list[self.current_index]].render()
-    def close(self):
-        for k,v in self.envs.items():
-            v.close()
-
-    # override attribute to be a method
-    @property
-    def action_space(self):
-        return self.envs[self.env_name_list[self.current_index]].action_space
-    @property
-    def observation_space(self):
-        return self.envs[self.env_name_list[self.current_index]].observation_space
+                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
 
-
-    def get_env_name(self):
-        return self.env_name_list[self.current_index]
-
-    def get_env_num(self):
-        return self.current_index
-
-    def get_env_name_list(self):
-        return self.env_name_list
 
 if __name__ == "__main__":
 
+    import cv2
 
-    import matplotlib.pyplot as plt
+    env = MegaAtariEnv(["PongNoFrameskip-v4","BreakoutNoFrameskip-v4", "SpaceInvadersNoFrameskip-v4", "QbertNoFrameskip-v4"], render_mode="rgb_array")
+    
+    # create renderer
+    width, height = 160 * 2, 210 * 2
+    out = cv2.VideoWriter('MegaEnvTest.mp4', cv2.VideoWriter_fourcc(*'mp4v'), 30, (width, height))
 
-
-    env = MegaAtariEnv(["Pong-v4", "Breakout-v4"], render_mode="rgb_array")
-
-
-    for env_index in env.env_name_list:
-        env.reset()
-        for timestep in range(100):
-            env.step(env.action_space.sample())
-            img = env.render()
-            plt.imshow(img)
-            plt.show(block=False)
-            plt.pause(0.05)
+    env.reset()
+    step_number = 0
+    for i in range(500):
+        action = env.all_action_spaces.sample()
+        o, r, d, i = env.step(action)
+        print(o.shape)
+        img = env.render()
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        out.write(img)
+        # print(action.shape, o.shape, r.shape, d.shape, i)
+    out.release()
