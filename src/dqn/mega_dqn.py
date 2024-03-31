@@ -6,6 +6,8 @@ import torch as th
 from gymnasium import spaces
 from torch.nn import functional as F
 from copy import deepcopy
+import psutil
+
 
 from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.off_policy_algorithm import OffPolicyAlgorithm
@@ -85,7 +87,7 @@ class MegaDQN(OffPolicyAlgorithm):
         policy: Union[str, Type[MegaDQNPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 1e-4,
-        buffer_size: int = 1_000_000,  # 1e6
+        buffer_size: int = 200_000,  
         learning_starts: int = 50000,
         batch_size: int = 256,
         tau: float = 1.0,
@@ -262,6 +264,10 @@ class MegaDQN(OffPolicyAlgorithm):
         for i, env_loss in enumerate(env_losses):
             env_name = self.env_strs[i]
             self.logger.record(f"train/loss_{env_name}", env_loss)
+
+        # log real and gpu memory usage
+        self.logger.record("train/ram_usage_MB", psutil.Process().memory_info().rss/1e6)
+        self.logger.record("train/gpu_ram_usage_MB", th.cuda.memory_allocated()/1e6)
 
 
 

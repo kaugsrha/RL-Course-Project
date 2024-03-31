@@ -105,6 +105,7 @@ class MegaBuffer(BaseBuffer):
                     "This system does not have apparently enough memory to store the complete "
                     f"replay buffer {total_memory_usage:.2f}GB > {mem_available:.2f}GB"
                 )
+        
 
     def add(
         self,

@@ -20,6 +20,7 @@ th.manual_seed(args.seed)
 
 # create envs
 env_strs = args.envs.split(",")
+print("Training on ", env_strs )
 env = MegaAtariEnv(env_strs, render_mode="rgb_array")
 
 # logging
