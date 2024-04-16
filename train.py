@@ -12,11 +12,13 @@ argparser.add_argument("--envs", type=str, default="PongNoFrameskip-v4,BreakoutN
 argparser.add_argument("--total_timesteps", type=int, default=int(1e6))
 argparser.add_argument("--verbose", type=int, default=0)
 argparser.add_argument("--seed", type=int, default=0)
+argparser.add_argument("--head_type", type=str, default="linear")
 args = argparser.parse_args()
 
 # seed everything
 np.random.seed(args.seed)
 th.manual_seed(args.seed)
+assert args.head_type in ["linear", "nn"]
 
 # create envs
 env_strs = args.envs.split(",")
@@ -28,7 +30,7 @@ date_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 logdir = f"logs/{date_time_str}"
 
 # training
-model = MegaDQN("MegaCnnPolicy", env, verbose=args.verbose, learning_starts=500, tensorboard_log=logdir)
+model = MegaDQN("MegaCnnPolicy", env, verbose=args.verbose, learning_starts=500, tensorboard_log=logdir, policy_kwargs={"head_type": args.head_type})
 model.learn(total_timesteps=args.total_timesteps, progress_bar=True)
 
 # save

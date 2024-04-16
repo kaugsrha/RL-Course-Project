@@ -41,6 +41,7 @@ class MegaQNetwork(BasePolicy):
         net_arch: Optional[List[int]] = None,
         activation_fn: Type[nn.Module] = nn.ReLU,
         normalize_images: bool = True,
+        head_type: str = "linear",
     ) -> None:
         super().__init__(
             observation_space,
@@ -63,7 +64,14 @@ class MegaQNetwork(BasePolicy):
             if not isinstance(action_space, spaces.Discrete):
                 raise ValueError("Action space must be of type gym.spaces.Discrete")
             action_dim = int(action_space.n)  # number of actions
-            q_net = create_mlp(self.features_dim, action_dim, self.net_arch, self.activation_fn)
+
+            # format head type
+            if head_type == "linear":
+                arch = []
+            else:
+                arch = [128, 128, 128]
+
+            q_net = create_mlp(self.features_dim, action_dim, arch, self.activation_fn)
             heads.append(nn.Sequential(*q_net))
             self.max_action_dim = max(self.max_action_dim, action_dim)
         self.heads = nn.ModuleList(heads)
@@ -160,6 +168,7 @@ class MegaDQNPolicy(BasePolicy):
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        head_type: str = "linear",
     ) -> None:
         super().__init__(
             observation_space,
@@ -188,6 +197,7 @@ class MegaDQNPolicy(BasePolicy):
             "net_arch": self.net_arch,
             "activation_fn": self.activation_fn,
             "normalize_images": normalize_images,
+            "head_type": head_type,
         }
 
         self._build(lr_schedule)
@@ -349,6 +359,7 @@ class MegaCnnPolicy(MegaDQNPolicy):
         normalize_images: bool = True,
         optimizer_class: Type[th.optim.Optimizer] = th.optim.Adam,
         optimizer_kwargs: Optional[Dict[str, Any]] = None,
+        head_type: str = "linear",
     ) -> None:
         assert all_action_spaces is not None, "all_action_spaces must be provided"
         assert max_action_space is not None, "biggest_action_space must be provided"
@@ -364,6 +375,7 @@ class MegaCnnPolicy(MegaDQNPolicy):
             normalize_images,
             optimizer_class,
             optimizer_kwargs,
+            head_type=head_type,
             
         )
 
