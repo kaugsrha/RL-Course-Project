@@ -390,7 +390,7 @@ class MegaDQN(OffPolicyAlgorithm):
                 self.current_returns[i] += reward
                 self.total_steps[i] += 1
 
-            self.num_timesteps += env.num_envs
+            self.num_timesteps += 1 # env.num_envs
             num_collected_steps += 1
 
             # Give access to local variables

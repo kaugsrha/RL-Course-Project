@@ -1,4 +1,6 @@
 from stable_baselines3.common.env_util import make_atari_env
+
+from src.dqn.SpecialProgressBar import SpecialProgressBarCallback
 from src.dqn.mega_dqn import MegaDQN
 from src.mega_atari.env import MegaAtariEnv
 import argparse
@@ -30,8 +32,14 @@ date_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
 logdir = f"logs/{date_time_str}"
 
 # training
-model = MegaDQN("MegaCnnPolicy", env, verbose=args.verbose, learning_starts=500, tensorboard_log=logdir, policy_kwargs={"head_type": args.head_type})
-model.learn(total_timesteps=args.total_timesteps, progress_bar=True)
+cb = SpecialProgressBarCallback()
+model = MegaDQN("MegaCnnPolicy", env,
+                verbose=args.verbose,
+                learning_starts=500,
+                tensorboard_log=logdir,
+                policy_kwargs={"head_type": args.head_type},
+                device="auto")
+model.learn(total_timesteps=args.total_timesteps, callback=cb)
 
 # save
 model.save(f"{logdir}/model")
