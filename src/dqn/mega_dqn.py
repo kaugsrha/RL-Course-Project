@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type, TypeVar, Un
 import numpy as np
 import torch as th
 from gymnasium import spaces
+from gymnasium.spaces import MultiDiscrete
 from torch.nn import functional as F
 from copy import deepcopy
 import psutil
@@ -15,7 +16,7 @@ from stable_baselines3.common.policies import BasePolicy
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedule
 from stable_baselines3.common.utils import get_linear_fn, get_parameters_by_name, polyak_update
 from stable_baselines3.common.noise import ActionNoise
-from stable_baselines3.common.vec_env import VecEnv
+from stable_baselines3.common.vec_env import VecEnv, unwrap_vec_normalize
 from stable_baselines3.common.buffers import  ReplayBuffer
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, RolloutReturn, Schedule, TrainFreq, TrainFrequencyUnit
@@ -550,3 +551,59 @@ class MegaDQN(OffPolicyAlgorithm):
         # Save the unnormalized observation
         if self._vec_normalize_env is not None:
             self._last_original_obs = new_obs_
+
+
+    def create_new_head(self, action_space):
+        self.policy.create_new_head(action_space)
+        self._create_aliases()
+        self.q_net = self.policy.q_net
+        self.q_net_target = self.policy.q_net_target
+
+    def set_env(self, env: GymEnv, force_reset: bool = True) -> None:
+        """
+        Checks the validity of the environment, and if it is coherent, set it as the current environment.
+        Furthermore wrap any non vectorized env into a vectorized
+        checked parameters:
+        - observation_space
+        - action_space
+
+        :param env: The environment for learning a policy
+        :param force_reset: Force call to ``reset()`` before training
+            to avoid unexpected behavior.
+            See issue https://github.com/DLR-RM/stable-baselines3/issues/597
+        """
+        # if it is not a VecEnv, make it a VecEnv
+        # and do other transformations (dict obs, image transpose) if needed
+        env = self._wrap_env(env, self.verbose)
+
+        # Update VecNormalize object
+        # otherwise the wrong env may be used, see https://github.com/DLR-RM/stable-baselines3/issues/637
+        self._vec_normalize_env = unwrap_vec_normalize(env)
+
+        # Discard `_last_obs`, this will force the env to reset before training
+        # See issue https://github.com/DLR-RM/stable-baselines3/issues/597
+        if force_reset:
+            self._last_obs = None
+
+        self.n_envs = env.num_envs
+        self.env = env
+
+        # override custom action space
+        self.all_action_spaces = env.venv.all_action_spaces
+
+        # override replay buffer
+        # Make a local copy as we should not pickle
+        # the environment when using HerReplayBuffer
+        replay_buffer_kwargs = self.replay_buffer_kwargs.copy()
+        self.replay_buffer = self.replay_buffer_class(
+            self.buffer_size,
+            self.observation_space,
+            self.action_space,
+            device=self.device,
+            n_envs=self.n_envs,
+            optimize_memory_usage=self.optimize_memory_usage,
+            **replay_buffer_kwargs,
+        )
+
+        # update labels
+        self.env_strs = [s.replace("NoFrameskip-v4", "") for s in self.env.venv.env_strs]

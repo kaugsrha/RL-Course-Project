@@ -131,6 +131,23 @@ class MegaQNetwork(BasePolicy):
         )
         return data
 
+    def create_new_head(self, action_space):
+        heads = []
+        if not isinstance(action_space, spaces.Discrete):
+            raise ValueError("Action space must be of type gym.spaces.Discrete")
+        action_dim = int(action_space.n)  # number of actions
+
+        # format head type
+        head_type = 'linear'
+        if head_type == "linear":
+            arch = []
+        else:
+            arch = [128, 128, 128]
+
+        q_net = create_mlp(self.features_dim, action_dim, arch, self.activation_fn)
+        heads.append(nn.Sequential(*q_net).to(device=self.device))
+        self.max_action_dim = max(self.max_action_dim, action_dim)
+        self.heads = nn.ModuleList(heads)
 
 class MegaDQNPolicy(BasePolicy):
     """
@@ -322,6 +339,19 @@ class MegaDQNPolicy(BasePolicy):
             actions = actions.squeeze(axis=0)
 
         return actions, state  # type: ignore[return-value]
+
+    def create_new_head(self, action_space):
+        self.q_net.create_new_head(action_space)
+        self.q_net_target.create_new_head(action_space)
+        self.q_net_target.load_state_dict(self.q_net.state_dict())
+        self.q_net_target.set_training_mode(False)
+
+        # Setup optimizer with initial learning rate
+        self.optimizer = self.optimizer_class(  # type: ignore[call-arg]
+            self.parameters(),
+            **self.optimizer_kwargs,
+        )
+
 
 
 MlpPolicy = MegaDQNPolicy
