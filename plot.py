@@ -96,8 +96,8 @@ plt.clf()
 # now plot the transfer case
 envs = {"BoxingNoFrameskip-v4": ("logs/2024_04_19_15_01_01/DQN_1", "logs/2024_04_19_17_20_34/DQN_1"),
         "AirRaidNoFrameskip-v4": ("logs/2024_04_22_09_12_22/DQN_1", "logs/2024_04_22_11_19_29/DQN_1"),
-        "ChopperCommandNoFrameskip-v4": ("logs/2024_04_22_13_25_29/DQN_1", "logs/2024_04_19_17_20_34/DQN_3"),
-        "TennisNoFrameskip-v4": ("logs/2024_04_19_15_01_01/DQN_4", "logs/2024_04_19_17_20_34/DQN_4")
+        "ChopperCommandNoFrameskip-v4": ("logs/2024_04_22_13_25_29/DQN_1", "logs/2024_04_22_15_49_46/DQN_1"),
+        "TennisNoFrameskip-v4": ("logs/2024_04_22_17_59_14/DQN_1", "logs/2024_04_22_20_08_02/DQN_1")
         }
 fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 index = 0
@@ -115,7 +115,8 @@ for env, (mt_dqn_dir, dqn_dir) in envs.items():
         for returns, label, color in [(mt_dqn_returns, "MT-DQN", "blue"), (dqn_returns, "DQN", "red")]:
             step = returns[f"rollout/return_{env_name}"]["step"]
             value = returns[f"rollout/return_{env_name}"]["value"]
-            xs, ys = smooth(step, value)
+            # xs, ys = smooth(step, value)
+            xs, ys = step, value
             ax.plot(xs, ys, label=label, color=color)
 
         ax.set_title(f"{env_name}")
